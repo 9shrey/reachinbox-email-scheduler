@@ -216,7 +216,7 @@ export function ComposeForm() {
                 {senders.length === 0 && <option value="">No senders configured</option>}
                 {senders.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.fromEmail}
+                    {s.name} — {s.fromEmail} ({s.maxEmailsPerHour}/hr)
                   </option>
                 ))}
               </select>
