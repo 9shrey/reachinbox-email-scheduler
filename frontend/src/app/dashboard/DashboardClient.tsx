@@ -40,6 +40,10 @@ export function DashboardClient({
   }, []);
 
   useEffect(() => {
+    // Standard fetch-on-mount/dependency-change pattern; `load` sets loading
+    // state before its first await, which the newer react-hooks strictness
+    // rule flags as "synchronous setState in an effect" — intentional here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load(tab);
   }, [tab, load]);
 

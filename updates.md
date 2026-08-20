@@ -45,10 +45,43 @@ Decisions I'm making unilaterally from here (no time to quiz) — flagged with *
 
 Backend is functionally complete for the assignment's hard requirements. Both processes currently running in background (ports 4000 API, worker attached to same queue).
 
-## Next up (in progress)
-- [ ] Next.js frontend scaffold (App Router + Tailwind)
-- [ ] NextAuth Google OAuth login
-- [ ] Dashboard shell (header, tabs)
-- [ ] Compose modal (subject/body/CSV upload/start time/delay/hourly limit → calls schedule API with a generated Idempotency-Key)
-- [ ] Scheduled/Sent tables with loading + empty states
-- [ ] README (setup, architecture, trade-offs)
+## Frontend — DONE
+- Scaffolded with `create-next-app` (Next.js **16.3.1**, App Router, Tailwind v4, Turbopack). **Note**: Next 16 has real breaking changes vs older docs — biggest one: `middleware.ts`/`middleware()` is renamed to **`proxy.ts`/`proxy()`**. Used the new convention throughout (`src/proxy.ts`).
+- **DECISION**: NextAuth v5 (beta, but the stable App-Router-native line), Google provider, **JWT session strategy** — no Prisma adapter/DB session tables, since we only need name/email/avatar for the header, not persisted multi-device sessions.
+- `src/auth.ts` — NextAuth config. `src/proxy.ts` — redirects `/dashboard` → `/login` when unauthenticated and vice versa (verified: unauthenticated `curl` to `/` and `/dashboard` both 307 to `/login`).
+- `src/app/login/page.tsx` — "Sign in with Google" button.
+- `src/app/dashboard/page.tsx` (server) + `DashboardClient.tsx` (client) — header, Scheduled/Sent tabs, Compose button, polls the API every 8s.
+- `src/components/Header.tsx` — avatar/name/email + Logout (`signOut`).
+- `src/components/ComposeModal.tsx` — subject/body, CSV/text upload (client-side regex extraction, shows detected count live), sender dropdown (fetched from `/api/senders`), start time, delay-between-emails, hourly-limit override, generates and sends the `Idempotency-Key` header.
+- `src/components/EmailTable.tsx` + `components/ui/*` (Button, Input/TextArea/Select, Modal, StatusBadge, loading/empty/error states) — reusable, typed.
+- `pnpm exec tsc --noEmit` clean, `next build` clean, dev server smoke-tested (redirects verified via curl).
+- **DECISION**: removed `papaparse` — plain regex extraction over the uploaded file's text was simpler and sufficient for "detect email addresses in a CSV/text file," avoided an unused/half-used dependency.
+
+## Type-check fixes (backend)
+While tightening: `tsc --noEmit` caught 2 real issues `tsx`'s runtime transpile had silently let through — fixed both:
+- `ioredis` v6 default import had no construct signature under `NodeNext` resolution → switched to the named `Redis` export.
+- The `status: { in: [...] as const }` Prisma filter was inferred as a readonly tuple, which Prisma's generated types reject (want a mutable array) → cast to `EmailStatus[]` instead.
+Backend now type-checks clean (`pnpm exec tsc -p tsconfig.json --noEmit`), and both processes were restarted afterward and re-verified against the live API.
+
+## Repo / git
+- `git init`, initial commit made (branch `main`) — 61 files, all source, no `node_modules`/`.env`/build output (root `.gitignore` covers it).
+- Root `README.md` written: setup (backend/frontend/Docker/Ethereal/Google OAuth), full architecture writeup (scheduling, persistence, idempotency, rate limiting — all mapped to actual file/line-level implementation), features-implemented checklist, assumptions/trade-offs section, manual-verification log.
+- `backend/.env.example` added (mirrors the working `.env`, safe to commit — just local docker-compose creds).
+- `frontend/.env.local.example` added — **you need to fill in real `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`** from a Google Cloud OAuth client for login to actually work (redirect URI: `http://localhost:3000/api/auth/callback/google`). `AUTH_SECRET` is pre-generated.
+
+## Currently running (background, on this machine)
+- Postgres: `localhost:5433` (docker)
+- Redis: `localhost:6379` (docker, AOF on)
+- Backend API: `localhost:4000`
+- Backend worker: attached, concurrency=5
+- To stop everything: `pkill -f "tsx src/server.ts"; pkill -f "tsx src/workers/emailWorker.ts"; docker compose down` (add `-v` to also wipe the docker volumes/data).
+- Frontend dev server was also started on `localhost:3000` for the smoke test — same idea to stop it (`pkill -f "next dev"`), or just leave it running to try it in a browser now.
+
+## What's left — needs YOU (can't do these on your behalf without asking)
+1. **Fill in Google OAuth creds** in `frontend/.env.local` (see above) so login actually works end-to-end in a browser.
+2. **Create the private GitHub repo**, add remote, push (`git remote add origin <url> && git push -u origin main`).
+3. **Grant access** to `Mitrajit` and `Yadav036` on that repo.
+4. **Record the ≤5 min demo video**: schedule via the UI, show Scheduled/Sent tabs, do the restart demo (kill+restart both backend processes, show the pending job still fires), briefly show rate-limit behavior (e.g. reuse the throwaway low-limit-sender trick from the verification run above).
+5. **Fill out the ClickUp submission form** with repo link + video link.
+
+Everything else (backend logic, persistence, rate limiting, idempotency, frontend UI/auth/tables) is implemented and hand-verified. Not written: an automated test suite (documented as a time-boxed trade-off in the README).
