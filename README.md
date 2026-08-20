@@ -1,5 +1,7 @@
 # ReachInbox — Email Job Scheduler
 
+Repo: https://github.com/9shrey/reachinbox-email-scheduler
+
 A production-shaped email scheduler: schedule cold-email sends via API/UI, persist them in Postgres, run them through BullMQ delayed jobs (no cron), send via Ethereal SMTP, and survive restarts without losing or duplicating jobs.
 
 ## Stack
