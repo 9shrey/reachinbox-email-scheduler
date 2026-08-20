@@ -104,10 +104,10 @@ Three independent guards, deliberately redundant:
 
 ### Frontend
 
-- **Auth**: NextAuth v5, Google provider, JWT session strategy (no DB adapter — we only need name/email/avatar for the header, not persisted sessions). Route protection via `src/proxy.ts` (Next.js 16 renamed `middleware.ts` → `proxy.ts`).
-- **Dashboard**: header (avatar/name/email + logout) + Scheduled/Sent tabs + Compose button, polls the API every 8s so tables reflect worker progress without a manual refresh.
-- **Compose modal**: subject/body, CSV/text file upload (client-side regex extraction of email addresses, count shown immediately), sender picker, start time, delay-between-emails, hourly-limit override. Generates the `Idempotency-Key` for the request.
-- **Tables**: loading, empty, and error states built in (`components/ui/States.tsx`), reusable `Button`/`Input`/`TextArea`/`Select`/`Modal`/`StatusBadge` components.
+- **Auth**: NextAuth v5, Google provider, JWT session strategy (no DB adapter — we only need name/email/avatar for the sidebar, not persisted sessions). Route protection via `src/proxy.ts` (Next.js 16 renamed `middleware.ts` → `proxy.ts`). Session is fetched once in `app/dashboard/layout.tsx` and shared to every route under `/dashboard` via a small `UserContext`, instead of each page re-calling `auth()`.
+- **Dashboard** (`app/dashboard/DashboardHome.tsx`): left sidebar (avatar/name/email + logout, Compose link, Scheduled/Sent nav with live counts from `GET /api/emails/counts`) + a search/filter/refresh bar + an inbox-style list (not a literal table) — polls the API every 8s so it reflects worker progress without a manual refresh.
+- **Compose** (`app/dashboard/compose/`): a full page, not a modal — subject/body, CSV/text file upload (client-side regex extraction, recipients shown as removable chips + "+N" overflow), sender picker, a "Send Later" popover (quick presets + a manual date/time picker) for start time, inline delay/hourly-limit fields. Generates the `Idempotency-Key` for the request, then routes back to `/dashboard` on success.
+- **Tables/lists**: loading, empty, and error states built in (`components/ui/States.tsx`), reusable `Button` component (5 real usages, not left as dead code), shared `EmailList` component used by both tabs.
 
 ---
 
@@ -135,7 +135,7 @@ Three independent guards, deliberately redundant:
 
 ## Assumptions, shortcuts & trade-offs
 
-- **No Figma access** — the link in the assignment brief was empty initially; a link was shared later, but the Figma account authenticated via MCP wasn't an actual collaborator on that file (browser link access ≠ API access — see `updates.md`), and requesting access wasn't available in the time we had. UI is an original clean dashboard design rather than a pixel-match. Structurally it covers every listed requirement (header, tabs, compose modal, tables with the specified columns).
+- **Figma match** — API access to the Figma file was never granted (see `updates.md` for the MCP investigation), but screenshots of every screen were shared directly, and the UI was rebuilt against them: left sidebar nav (not a top header), inbox-style list rows with status/time pills (not a literal `<table>`), a full-page Compose screen (not a modal) with a "Send Later" date/time popover, chip-style recipient list with CSV/text upload, and the green/emerald accent from the design. Not a pixel-perfect match (no measurements/exact hex values, no Code Connect), but structurally and visually aligned screen-by-screen. The decorative rich-text toolbar and paperclip/star icons from the design are present but intentionally inert — the assignment only calls for plain subject/body, so wiring up a real rich-text editor would be scope creep dressed as fidelity.
 - **One sender per batch**, not round-robin across senders within a single compose request. The system supports many senders overall (each with an independent hourly cap); a given schedule request picks one.
 - **Backend API is not itself authentication-gated** — the frontend gates the *dashboard* behind Google login, but the Express API has no auth middleware of its own. Fine for this assignment's scope (local, same-machine); a real deployment would forward the NextAuth session/JWT to the backend and verify it there.
 - **SMTP send failures are terminal, not auto-retried** — a failed `sendMail` call is recorded as `FAILED` immediately rather than relying on BullMQ's retry/backoff (which is still configured on the queue for transient infra errors, e.g. a Redis hiccup, but application-level throws are caught and finalized). Simpler status model, at the cost of not auto-recovering from a transient Ethereal outage.

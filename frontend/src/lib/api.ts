@@ -1,4 +1,4 @@
-import type { EmailRow, ScheduleBatchInput, ScheduleBatchResponse, Sender } from "@/types";
+import type { EmailCounts, EmailRow, ScheduleBatchInput, ScheduleBatchResponse, Sender } from "@/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -26,6 +26,10 @@ export function fetchSenders(): Promise<{ senders: Sender[] }> {
 
 export function fetchEmails(status: "scheduled" | "sent"): Promise<{ emails: EmailRow[] }> {
   return request(`/api/emails?status=${status}`);
+}
+
+export function fetchEmailCounts(): Promise<EmailCounts> {
+  return request("/api/emails/counts");
 }
 
 export function scheduleBatch(

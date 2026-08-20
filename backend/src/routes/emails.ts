@@ -52,6 +52,11 @@ emailsRouter.post("/schedule", async (req, res) => {
   });
 });
 
+function preview(body: string, max = 70): string {
+  const flat = body.replace(/\s+/g, " ").trim();
+  return flat.length > max ? `${flat.slice(0, max)}…` : flat;
+}
+
 // GET /api/emails?status=scheduled|sent
 emailsRouter.get("/", async (req, res) => {
   const statusParam = String(req.query.status ?? "scheduled").toLowerCase();
@@ -63,7 +68,7 @@ emailsRouter.get("/", async (req, res) => {
 
   const emails = await prisma.email.findMany({
     where: { status: statusFilter },
-    include: { batch: { select: { subject: true, sender: { select: { name: true } } } } },
+    include: { batch: { select: { subject: true, body: true, sender: { select: { name: true } } } } },
     orderBy: statusParam === "sent" ? { sentAt: "desc" } : { scheduledAt: "asc" },
     take: 200,
   });
@@ -73,6 +78,7 @@ emailsRouter.get("/", async (req, res) => {
       id: e.id,
       recipient: e.recipient,
       subject: e.batch.subject,
+      bodyPreview: preview(e.batch.body),
       sender: e.batch.sender.name,
       status: e.status,
       scheduledAt: e.scheduledAt,
@@ -81,4 +87,13 @@ emailsRouter.get("/", async (req, res) => {
       previewUrl: e.previewUrl,
     })),
   });
+});
+
+// GET /api/emails/counts — sidebar nav badge counts
+emailsRouter.get("/counts", async (_req, res) => {
+  const [scheduled, sent] = await Promise.all([
+    prisma.email.count({ where: { status: { in: ["SCHEDULED", "PROCESSING"] } } }),
+    prisma.email.count({ where: { status: { in: ["SENT", "FAILED"] } } }),
+  ]);
+  res.json({ scheduled, sent });
 });

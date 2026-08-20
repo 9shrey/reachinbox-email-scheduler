@@ -4,12 +4,18 @@ export interface EmailRow {
   id: string;
   recipient: string;
   subject: string;
+  bodyPreview: string;
   sender: string;
   status: EmailStatus;
   scheduledAt: string;
   sentAt: string | null;
   error: string | null;
   previewUrl: string | null;
+}
+
+export interface EmailCounts {
+  scheduled: number;
+  sent: number;
 }
 
 export interface Sender {

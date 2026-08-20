@@ -93,7 +93,30 @@ Backend now type-checks clean (`pnpm exec tsc -p tsconfig.json --noEmit`), and b
    - **Bonus — rate limit**: mention/show a low-`maxEmailsPerHour` sender (I used 2/hr in testing) getting more recipients than its cap — the overflow email's row shows `scheduledAt` pushed to the next hour instead of failing.
    - All of this is proven to work already (see the verification log above and the fresh one below) — you're narrating a known-good run, not debugging live.
 3. **Fill out the ClickUp submission form** with the repo link above + your video link — this is the actual "submit the assignment" action, left entirely to you.
-4. ~~Figma match~~ — **closed, not pursued.** Figma MCP got connected (`/mcp` → authenticated as `9shrey@gmail.com`, confirmed via `whoami`), but every call against `Outbox-Labs-Assignment` (`fileKey kOTwGlESjijCYnMgtHfvfU`) — `get_metadata`, `get_screenshot`, with and without a node id — was rejected: "you don't have edit access to this file." The link is viewable in a browser (likely via Figma's "anyone with the link can view," which doesn't grant API-level access) but the account isn't an actual collaborator on the file, and requesting access wasn't available. Decision: ship with the current UI — an original clean-dashboard design that covers every layout requirement in the brief (header, tabs, compose modal, tables with the specified columns), just not a pixel-match to the Figma frames I was never able to see.
+4. ~~Figma match~~ — **done, via screenshots.** Figma MCP API access stayed blocked (`get_metadata`/`get_screenshot` on `Outbox-Labs-Assignment` both rejected — confirmed via `whoami` this was the right account, just not a file collaborator, and requesting access wasn't available). You pasted 7 screenshots directly instead. That was enough — see "Figma-matched rebuild" below.
+
+## Figma-matched rebuild
+The screenshots showed a **materially different design** than what I'd built from the text spec alone — worth being explicit about, since this was a real rebuild, not a restyle:
+
+| | Original build | Figma |
+|---|---|---|
+| Nav | top header + horizontal tabs | left sidebar, nav items with live count badges |
+| List | literal `<table>` w/ columns | inbox-style rows — recipient, one status/time pill, subject+preview, star |
+| Compose | centered modal | full page, back-arrow navigation |
+| Start time | plain `datetime-local` input | "Send Later" popover — quick presets (Tomorrow, Tomorrow 10AM, …) + manual picker |
+| Recipients | plain "N detected" text | removable chips + "+N" overflow, "Upload List" as a link not a native file input |
+| Accent color | indigo | emerald/green |
+
+Rebuilt to match, screen by screen:
+- **`Sidebar.tsx`** (new) — replaces `Header.tsx` (deleted). Logo, profile+dropdown-logout, Compose link, Scheduled/Sent nav with count pills from a new `GET /api/emails/counts` backend endpoint.
+- **`EmailList.tsx`** (new, replaces `EmailTable.tsx`) — row-based list matching the inbox aesthetic. **Design decision**: Figma folds "time" and "status" into one pill (amber+clock for scheduled, gray+send-icon for sent) rather than separate columns — kept that visual language but made sure the pill text still always carries the real timestamp, so the spec's "scheduled/sent time" column requirement isn't quietly dropped for the sake of matching a screenshot. Needed a `bodyPreview` field added to `GET /api/emails` (backend: `emails.ts`, truncates `batch.body`) to render the "Subject — preview text" line.
+- **`app/login/page.tsx`** (rebuilt) — matches the card layout closely. Figma shows email/password fields too; since the assignment explicitly requires **real Google OAuth, no mock**, those fields are rendered to match the design but `disabled`, with a note — didn't fake a second auth path just for visual completeness.
+- **`app/dashboard/compose/`** (new route, replaces `ComposeModal.tsx`) — full-page compose: From/To/Subject rows styled to match, chip-based recipients with per-chip remove + overflow, "Upload List" link wrapping a hidden file input, inline delay/hourly-limit fields, a decorative (intentionally inert, labeled as such via `title`) rich-text toolbar, and a working **Send Later popover** (presets + manual datetime, Cancel/Done) that sets the actual `startTime` used for scheduling.
+- **Architecture cleanup that came out of this**: `/dashboard` and `/dashboard/compose` both need session info, so added `app/dashboard/layout.tsx` (single `auth()` call) + `context/UserContext.tsx` instead of duplicating the redirect-if-unauthenticated check per page.
+- **Dead code removed**, not left around: `ComposeModal.tsx`, `Modal.tsx`, `StatusBadge.tsx`, `Field.tsx` (Input/TextArea/Select) — none of them fit the real design's layout and nothing referenced them after the rebuild. `Button.tsx` stayed and is now actually used in `Sidebar.tsx` (logout) and `ComposeForm.tsx` (Send/Cancel/Done) rather than being dead weight.
+- Installed `lucide-react` for the line-icon set (clock, send, search, upload, chevrons, etc.) to match Figma's icon style instead of hand-drawing SVGs.
+
+**Verified the same way as before** — not just "it builds": restarted with the `SKIP_AUTH_FOR_SCREENSHOT` bypass (added, used, fully reverted — confirmed via `grep` again after), screenshotted every rebuilt screen next to the Figma reference, and drove the actual compose-with-file-upload-to-scheduled flow through Playwright end-to-end (4 recipients, chip overflow "+1" rendered correctly, all 4 landed in Scheduled with correct staggered times, all matching the design's amber time-pill treatment). `tsc --noEmit`, `eslint .`, and `next build` all clean after. Backend also picked up a bit of process hygiene during this pass — found and killed 5 stray duplicate worker/server processes accumulated from earlier restarts in this session (harmless given the idempotency guards, but wasteful and confusing to leave running); exactly one server + one worker running now.
 
 Everything else — backend logic, persistence, rate limiting, idempotency, frontend UI/auth/tables, and now actual click-through UI verification — is implemented, hand-verified, committed, and pushed. Not written: an automated test suite (documented as a time-boxed trade-off in the README).
 
