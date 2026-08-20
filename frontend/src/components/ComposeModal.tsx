@@ -31,7 +31,13 @@ export function ComposeModal({
 }) {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
-  const [senderId, setSenderId] = useState(senders[0]?.id ?? "");
+  // null = "user hasn't explicitly picked one yet" — falls back to the
+  // first loaded sender at render time. Avoids an effect just to sync
+  // local state with a prop that arrives after this component mounts
+  // (senders load async in the parent, so senders[0] isn't there yet
+  // on first render).
+  const [senderId, setSenderId] = useState<string | null>(null);
+  const effectiveSenderId = senderId ?? senders[0]?.id ?? "";
   const [startTime, setStartTime] = useState(() => toDatetimeLocalValue(new Date()));
   const [delaySeconds, setDelaySeconds] = useState(5);
   const [hourlyLimit, setHourlyLimit] = useState<number | "">("");
@@ -45,6 +51,7 @@ export function ComposeModal({
   function resetAndClose() {
     setSubject("");
     setBody("");
+    setSenderId(null);
     setStartTime(toDatetimeLocalValue(new Date()));
     setDelaySeconds(5);
     setHourlyLimit("");
@@ -73,7 +80,7 @@ export function ComposeModal({
       setError("Upload a CSV/text file with at least one email address.");
       return;
     }
-    if (!senderId) {
+    if (!effectiveSenderId) {
       setError("Select a sender.");
       return;
     }
@@ -84,7 +91,7 @@ export function ComposeModal({
         {
           subject,
           body,
-          senderId,
+          senderId: effectiveSenderId,
           startTime: new Date(startTime).toISOString(),
           delayMs: delaySeconds * 1000,
           hourlyLimit: hourlyLimit === "" ? undefined : hourlyLimit,
@@ -142,7 +149,7 @@ export function ComposeModal({
 
         <Select
           label="Send from"
-          value={senderId}
+          value={effectiveSenderId}
           onChange={(e) => setSenderId(e.target.value)}
           required
         >
