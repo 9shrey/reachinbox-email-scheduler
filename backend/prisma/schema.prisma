@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EmailStatus {
+  SCHEDULED
+  PROCESSING
+  SENT
+  FAILED
+}
+
+/// A sender identity (Ethereal SMTP account) emails can be sent from.
+/// Multiple senders let us demonstrate per-sender rate limiting.
+model Sender {
+  id               String   @id @default(uuid())
+  name             String
+  fromEmail        String
+  smtpHost         String
+  smtpPort         Int
+  smtpUser         String
+  smtpPass         String
+  maxEmailsPerHour Int      @default(50)
+  createdAt        DateTime @default(now())
+
+  batches Batch[]
+
+  @@map("senders")
+}
+
+/// One "Compose New Email" submission. Holds the shared subject/body/settings;
+/// the actual per-recipient rows live in Email.
+model Batch {
+  id             String   @id @default(uuid())
+  idempotencyKey String?  @unique
+  subject        String
+  body           String   @db.Text
+  senderId       String
+  startTime      DateTime
+  delayMs        Int
+  hourlyLimit    Int?
+  createdByEmail String?
+  createdAt      DateTime @default(now())
+
+  sender Sender  @relation(fields: [senderId], references: [id])
+  emails Email[]
+
+  @@map("batches")
+}
+
+/// One scheduled/sent email to one recipient. This is what BullMQ schedules
+/// a delayed job for (jobId == Email.id, which is how we get idempotent scheduling).
+model Email {
+  id          String      @id @default(uuid())
+  batchId     String
+  recipient   String
+  status      EmailStatus @default(SCHEDULED)
+  scheduledAt DateTime
+  sentAt      DateTime?
+  error       String?
+  previewUrl  String? // Ethereal's "view this email" URL, shown in the Sent Emails table
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  batch Batch @relation(fields: [batchId], references: [id])
+
+  @@index([status])
+  @@index([batchId])
+  @@index([scheduledAt])
+  @@map("emails")
+}

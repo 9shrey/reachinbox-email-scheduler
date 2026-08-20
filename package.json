@@ -1,0 +1,12 @@
+{
+  "name": "outbox-assignment",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev:backend": "pnpm --filter backend dev",
+    "dev:worker": "pnpm --filter backend dev:worker",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
+  }
+}
